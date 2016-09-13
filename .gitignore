@@ -1,2 +1,5 @@
 # no node modules your can just user `gitbook install `
 node_modules/
+
+# personal
+personal/
