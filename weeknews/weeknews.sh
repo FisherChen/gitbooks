@@ -1,5 +1,5 @@
 
-# get img 
+# get img only in ![<imgname>][<num>] fomat
 
 img_type=".png"
 file_name=""
@@ -18,7 +18,7 @@ then
 	echo "" >> $file_name
 	n="1"
 	str_temp=""
-	for str in ` cat $file_name |grep [][] | awk -F'[][]' '{for(i=2;i<NF;i+=2) print $i}' `
+	for str in ` cat $file_name |grep "\!\[.*\]\[.*\]$"   | awk -F'[][]' '{for(i=2;i<NF;i+=2) print $i}' `
 		do
 			if [ "$n" = "1" ]
 			then
