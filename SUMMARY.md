@@ -6,6 +6,7 @@
 * [日常知识整理](./tips/readme.md)
 	* [subl 快捷键](./tips/subl_shorcut.md)
 	* [Ubuntu 常用软件整理](./tips/ubuntu_software.md)
+	* [Linux 命令备注](./tips/shell_command.md)
 	* [mongodb](./mongodb/readme.md)
 		* [学习TIPS](./mongodb/mongo_study_tips.md)
 	* [oracle](./oracle/readme.md)

@@ -4,7 +4,9 @@
   "plugins": [
     "toggle-chapters",
     "tbfed-pagefooter",
-    "toc"
+    "toc",
+    "-search",
+    "splitter"
   ],
   "pluginsConfig": {
     "fontSettings": {
