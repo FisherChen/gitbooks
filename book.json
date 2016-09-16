@@ -1,30 +1,30 @@
 {
-  "title": "Wiki",
-  "language": "zh-hans",
-  "plugins": [
-    "toggle-chapters",
-    "tbfed-pagefooter",
-    "toc",
-    "-search",
-    "splitter"
-  ],
-  "pluginsConfig": {
-    "fontSettings": {
-      "theme": [
-        "sepia",
-        "night",
-        "white"
-      ]
-    },
-    "tbfed-pagefooter": {
-      "copyright": "Copyright &copy Fisher 2016",
-      "modify_label": "该文件修订时间：",
-      "modify_format": "YYYY-MM-DD HH:mm:ss"
-    },
-    "toc": {
-      "addClass": true,
-      "className": "toc",
-      "maxDepth" : 6
+    "title": "Wiki",
+    "language": "zh-hans",
+    "plugins": [
+        "toggle-chapters",
+        "tbfed-pagefooter",
+        "toc",
+        "search",
+        "splitter"
+    ],
+    "pluginsConfig": {
+        "fontSettings": {
+            "theme": [
+                "sepia",
+                "night",
+                "white"
+            ]
+        },
+        "tbfed-pagefooter": {
+            "copyright": "Copyright &copy Fisher 2016",
+            "modify_label": "该文件修订时间：",
+            "modify_format": "YYYY-MM-DD HH:mm:ss"
+        },
+        "toc": {
+            "addClass": true,
+            "className": "toc",
+            "maxDepth": 6
+        }
     }
-  }
 }
