@@ -29,3 +29,9 @@
 		最后，重启或运行此命令使其生效
 			`$ setsid unity`
 
+
+
+### 3. Wifi的重启
+	有的时候通过键盘或者是图标可以禁用wifi，但是重启的时候就有可能失灵，可以通过如下的方式重启Wifi：
+	`sudo rfkill unblock all`
+

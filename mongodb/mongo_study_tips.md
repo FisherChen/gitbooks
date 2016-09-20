@@ -528,6 +528,7 @@
   另外mongodb有一个非常直观的expain执行计划表述，比Oracle直观很多。
 
 
+---
 ### 50. 执行计划的特别之处
 
   1. mongodb是的执行计划都是cache的，如果数据库重启了那执行计划就会丢失，mongodb并不会将执行计划持久化到数据库中。
@@ -537,7 +538,6 @@
   应该不会有影响，mongodb的执行计划计算的耗时应该是微乎其微的，同时mongodb的把执行计划缓存起来以后并不是会一成不变的
   ，后面还有有专门的选举机制对执行计划进行管理及变更，这个机制主要是进行广播比较及选举，至于如何比较，什么时间会触发让执行计划的重新cache，如何人工的介入干扰执行计划，后面都是有待学习。
 
-
   2. 索引和hint 这些硬性的指标，计划解析器对命令的计划优先级还是非常高的，如果命中了索引或者是hint 那基本上就不会选择其他的plan了.
 
   > 如果即有索引也有hint的话，那mongodb又是如何选择的呢？
@@ -545,4 +545,87 @@
   3. 在直接通过 explain()的时候mongodb并不是从cache中抽取已经cache的执行计划，而是重新的发起一次执行计划的选举获取，那就有一个问题，假如同样的一个查询脚本，是否有可能在内存中正在执行的执行计划是old的，而现在的新选举的执行计划是新的效率高的。我觉得完全是有可能的，这个同Oracle的机制是一样的，再次查询优化比较得到的执行计划，可能并不是内存中正在执行的查询计划，
 
   > 那又如何知道一个正在执行的语句它选择的执行计划呢？
+  
   这个就是的explian(<MODE>)的模式选择问题了，默认的情况下执行的是quaryPlanner Mode -- 直接的选举一个新的plan，但是executionStats Mode 则是从cash中直接取当前的执行计划。这个解决的问题同Oracle都是一样的（即：获取执行中 和 当前的执行计划），但是其容易度就不一样了，Oracle获取的当前正在执行的SQL的执行计划会麻烦点（定位session，找到sqlid，然后用dba的包拉）
+
+  > mongodb是如何直接的killsession的，假如有一个性能非常糟糕的请求在占用资源的话？
+
+  4. allPlansExecution Mode 
+  这个模式会将所有的plan都打印出来，包括那些竞争失败的执行计划，这个功能感觉上一般用于检查执行计划到底为何没有按照预订的方案执行，可以了解到查询优化器到底是否生成了设计中的计划，然后再查找竞争失败的原因。
+
+  5. code case:
+    - 普通模式
+      ```javascript
+          db.products.explain().count( { quantity: { $gt: 50 } } )
+      ```
+      ```javascript
+          db.products.explain("executionStats").find(
+           { quantity: { $gt: 50 }, category: "apparel" }
+          )
+      ```
+      ```javascript
+          db.products.explain("allPlansExecution").update(
+           { quantity: { $lt: 1000}, category: "apparel" },
+           { $set: { reorder: true } }
+          )
+      ```
+
+    - 添加过滤器
+      ```javascript
+        db.products.explain("executionStats").find(
+         { quantity: { $gt: 50 }, category: "apparel" }
+        ).sort( { quantity: -1 } ).hint( { category: 1, quantity: -1 } )
+      ```
+      可以通过`db.collection.explain().find().help()` 查询可用的过滤清单。
+
+---
+### 51. 性能优化建议
+  性能优化中也是尽量合理的使用索引，但是任何的索引都是有代价的，过多的索引会引起数据插入上的低效。另外Mongodb中是使用Query Selectivity这个概念，在Oracle数据库中则是使用 聚簇因子，虽然其底层的数据的结构可能不一样，但是其目的是一样的，那就是通过一定的算法，让优化器能够去v量化比较那一种执行计划更有效率。而很多的执行计划的变更，或者是查询的优化，都是基于这种理念做的改造调整。
+
+---
+### 52. Mongodb Profiler 性能监控工具
+  主要用于监控mongodb当前数据库的执行操作，其通过LEVEL 进行了控制：
+
+  |Level|Setting|
+  |-----|-------|
+  |0|Off. No profiling|
+  |1|On. On. Only includes “slow” operations|
+  |2|Off. On. Includes all operations|
+
+  通过 shell `db.setProfilingLevel(1)` 来进行设置。
+
+  至于如何进行设置及使用 Profiler 后面再学习补充
+
+---
+### 53. 查询优化的索引的效能
+  mongodb的索引，特别是组合索引其前后顺手还是有一点的关联性的，如果的数据区分度高的在第一个的话，那后面的查询效率会提升很多，但是如果是数据区分读低的在地一个的话，那后面的数据区分度就并不会太高。
+
+  ```javascript
+  db.inventory.createIndex( { quantity: 1, type: 1 } )
+  db.inventory.createIndex( { type: 1, quantity: 1 } )
+  ```
+
+  上面就是2种完全不同的索引的组合，其查询的性能也是会根据数据的实际情况有所区分。这类的组合索引在设计的时候，需呀尽量的考虑使用的具体场景。
+
+---
+### 54. Tailable Cursors
+  这个是在Oracle中没有发现的新特性。其主要的目的感觉是在与不断的读取输送，同Linux上的tail命令类似。其是不走索引的，第一次检索的时候会非常的慢，但是后面的话会增量的顺序读数据。这个同capped colletions结合起来，会是非常不错的流程出来工具。不过其也有很大的局限性，有异常的清除动作，就会引起这个cursor的失效。
+
+  - Consider the following behaviors related to tailable cursors:
+  Tailable cursors do not use indexes and return documents in natural order.
+
+  - Because tailable cursors do not use indexes, the initial scan for the query may be expensive; but, after initially exhausting the cursor, subsequent retrievals of the newly added documents are inexpensive.
+
+  - Tailable cursors may become dead, or invalid, if either:
+
+    + the query returns no match.
+    + the cursor returns the document at the “end” of the collection and then the application deletes that document.
+
+    A dead cursor has an id of 0.
+
+
+
+
+
+
+
