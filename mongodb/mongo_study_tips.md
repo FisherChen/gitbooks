@@ -489,7 +489,6 @@
 ### 47. Capped Collection
   这个collection更像是一种数据结构，其多整个colletion的大小做了限制，可以根据实际的需求来做输入输出的顺序控制，但是这个colletion不可以shard。一般比较合适日志等数据的记录。
 
-
 ---
 ### 48. 限制表结构 db.createCollection() 
   可以在创建collection的时候对字段进行限制，但是这样的限制还是要根据实际的业务数据情况来定。如何的限制在数据插入的时候都是会有校验，都是会有性能损耗的，而且随着的业务的场景的调整，对以往的限制条件的维护也是一个需要考虑的问题，不做的话数据质量会有问题，做的话会带来运维的成本和性能上的压力，那还是需要甄别出那些是非常重要的数据必须要求进行校验的，且这些数据的量也不应当太大。
@@ -515,9 +514,17 @@
 
   > 如何修改已经创建的校验规则么？
 
-    ?
+    可以参考下面的这个文章，mongdb的validator 是可以覆盖和调整的，不过需要执行collMond.
 
+    ```javascript
 
+      var newRule = { email: { $exists: true, $type: "string", $regex: /^\w+@\w+\.gov$/  } }
+      db.runCommand( { collMod: "customer", validator: newRule} )
+
+    ```
+
+    
+    http://plusnconsulting.com/post/MongoDB-3-2-Goodies-coming-your-way-Schema-Validator/
 
 ---
 ### 49. mongodb 的执行计划概述
@@ -623,8 +630,60 @@
 
     A dead cursor has an id of 0.
 
+---
+### 55. mongodb 的 text 全文检索
+  可以使用text索引来进行全局索引，目前mongodb也支持中文的全局索引及分词，但是其中文的分词算法和逻辑是基于basistech.com 的技术，所以要支持中文的全局需要购买basistech的SDK的工具包。
 
+  另外的text属性的索引一个colleciton中仅仅只能有一个，如果多个字段需要做此类的索引的话，那就要建立一个组合的索引。
 
+  我认为还是不在mongodb上做此类的索引为好，第一需要购买额外的sdk，sdk的支持情况也不清楚是如何的，还有就是如果在交易表的基础上新建这样的索引，应当对insert性能有很大的影响。如果要做专业的查询的话，还是使用其他的搜索比较好。
+
+---
+### 56. 数据模型的设计 之 数据嵌套
+  数据的嵌套在一定的程度上是可以减少数据的数据操作次数和客户端的访问次数的，但是也不能够将所有的宝都压在这个结构上。当数据越来越多的时候，插入的性能就会下降，同时还是引起数据碎片的问题。
+
+  However, embedding related data in documents may lead to situations where documents grow after creation. With the MMAPv1 storage engine, document growth can impact write performance and lead to data fragmentation.
+
+---
+### 57. 数据模型的设计 之 关系
+  mongdb 可以使用 refrences 来设计多表之间的关系。使用Normalized模型可以有效的减少数据的重复性，但是为了解析关系就必须同时数据库产生多次的交互，这样就会带来读取性能的损耗。同嵌入模型比较起来算是以时间换空间了吧。既然现在已经是弱关系的管理模式了，适当的存储数据应当是没有问题的。
+
+---
+### 58. 设计上的一些问题
+  因为mongddb的存储引擎（MMAPv1）的设计，在数据的update修改的时候，如果新增的数据内容大于之前留存的数据内容的时候就会发生数据的迁移，这个对性能的影响是很大的。那有没有什么方法可以避免这种情况呢，特别是明明已经知道会有批量的数据的新增。
+
+  上述的问题是基于MMAPv1存储引擎的，但是从mongodb3.2 开始，默认的存储引擎已经变更为WiredTiger了。存储引擎的特性需要多了解下。
+
+  官方给的意见是如果更新的动作非常的频繁，引起了数据的大规模的迁移，那就要考虑使用 normalized的设计模式取代refrences的设计模式。不过这个东西还是需要根据实际的数据使用场景来定，看看是否可以通过置换的方式处理数据。
+
+  还有一个方案是通过预先固定的方式处理。预先固定数据的预留空间，但是实际上并不是所有的记录都需要被更新的，如果固定空间的话，是不是容易引起空间的大幅度浪费。
+
+---
+### 59. 存储引擎
+  在mongdb3.2之前的存储引擎是MMAPv1 ,3.2版本开始使用的WiredTiger引擎。
+
+  WiredTiger
+    - 每60秒或者是内存数据超过2g的时候将数据同步到磁盘。同oracle类型的cheakpoint的机制，主要是mongodb的健壮性的配置。
+    在恢复的时候moongdb是先检查cheakpoint的，然后再利用日志来恢复chekpoint之后发生的种种问题。
+    
+    - 因为有了replica set ，在性能需要的时候可以关闭 journal么？
+
+    - 压缩是按照块来压缩的，可以压缩数据也可以压缩索引。
+
+---
+### 60. 字段的熟悉名称尽量的小
+  因为mongodb是把每个字段都存储在collection中了，所以有时候字段名称都占了很多的空间，如果为了减少空间的使用的话，尽量使用简短的字段名称。当然可读性也是不能忽略的。
+
+---
+### 61. 可以设置数据失效日期
+  可以设置数据失效日期来控制数据的生命周期。（归档的场景下比较用有，因为不需要手工的清洗数据，但是的控制不好会比较危险）
+
+  还有就是90%以上的场景是针对最近的操作做的管理 ，此类的操作使用Capped Collections是最合理的，但是旧的数据又不能清理掉。如果分接口处理的话，又及其的麻烦，非常的难维护。
+
+  如何使用 Capped Collections 呢？
+
+---
+### 62. 
 
 
 
