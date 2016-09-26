@@ -671,7 +671,7 @@
     - 压缩是按照块来压缩的，可以压缩数据也可以压缩索引。
 
 ---
-### 60. 字段的熟悉名称尽量的小
+### 60. 字段的名称尽量的小
   因为mongodb是把每个字段都存储在collection中了，所以有时候字段名称都占了很多的空间，如果为了减少空间的使用的话，尽量使用简短的字段名称。当然可读性也是不能忽略的。
 
 ---
@@ -683,7 +683,54 @@
   如何使用 Capped Collections 呢？
 
 ---
-### 62. 
+### 62. 关于join查询
+  mongodb是不支持join查询的，但是可以使用DBRefs将不同的表关联起来，然后在使用的时候利用drivers将其自动的查询出来，但是还是不建议自动处理这种逻辑。官方给的意见是能自己手工出来的还是自己手工处理。即使是用drivers来处理也是查询两次。这个在形式上更像是herbinate。
+
+---
+### 63. 索引Index
+  重要的事情永远放在后面，mongodb的索引：
+
+  首先索引之索引快主要是因为其是顺序的，可以急速的找打需要的数据。mongodb的索引机制同其他的数据库的索引机制无太本质的分别。
+
+  - you can not drop index on the **_id** filed. 如果没有的话会自动的新增一个。mongodb的uuid。
+
+  - mongdb 的索引是B-TREE 索引
+
+  - Single Field 索引。单字段索引。对于单字段索引，sort asc 或者是 desc 都没有什么大关系。
+
+  - compound 索引 ，组合索引。那组合索引的情况下，数据的排序有影响么？
+
+    组合索引对排序的性能是有影响的，尽量让排序同索引保持一致。比较坑呀。
+
+    > You can specify a sort on all the keys of the index or on a subset; however, the sort keys must be listed in the same order as they appear in the index. For example, an index key pattern { a: 1, b: 1 } can support a sort on { a: 1, b: 1 } but not on { b: 1, a: 1 }.
+
+    > The sort must specify the same sort direction (i.e.ascending/descending) for all its keys as the index key pattern or specify the reverse sort direction for all its keys as the index key pattern. For example, an index key pattern { a: 1, b: 1 } can support a sort on { a: 1, b: 1 } and { a: -1, b: -1 } but not on { a: -1, b: 1 }.
+
+  - Multikey Index 索引为数组而生
+    这个索引的机制及性能如何需要再挖下
+
+  - Geospatial Index 二位的地理位置索引。场景比较特殊。
+
+  - Text Indexes 是给全文检索使用的。因为中文的全文检索需要额外的购买分词算法，目前估计暂时用不到。
+
+  - Hashed Indexes 使用hash算法来索引数据，但是本身应当也是有一定的显示的，比如应当没办法支持范围查询及可能出现不同的数据相同的hash值的场景。
+
+  - 索引的属性 --Unique Indexes ，顾名思义，唯一性约束的索引
+
+  - 索引的属性 --Partial Indexes ，这个是mongodb3.2 因引入的一个属性概念，对于不存在的数据无需建立索引。这个是非常不错的一个理念。
+
+  - 索引的属性 --Sparse Indexes ，稀疏索引，仅仅索引有含有这个fild的数据（有fild但是无值估计也会被索引），不过这个索引应当慢慢的退出历史舞台了，因为mongodb的官方提供了 paitial index，官方的建议是首选partial。
+
+    > Partial indexes offer a superset of the functionality of sparse indexes and should be preferred over sparse indexes.
+  
+  - 索引的属性 --TTL Indexes ，设置数据的超时日期，然后自动消除，这个对数据的生命周期管理而言会非常的方便。
+
+  mongodb 是会自动的选择走什么样的索引，
+
+---
+### 63. 其他的索引限制
+
+  
 
 
 
