@@ -729,6 +729,71 @@
 
 ---
 ### 63. 其他的索引限制
+  mongodb 本身有各种的限制，目前官方的mannual中详细的列述了各类的限制。
+  https://docs.mongodb.com/manual/reference/limits/#index-limitations
+
+---
+### 64. single index
+  -  a Single Field
+  db.records.createIndex( { score: 1 } ) 
+
+  -  an Embedded Field
+  db.records.createIndex( { "location.state": 1 } )
+
+  - Embedded Document
+  db.records.createIndex( { location: 1 } )
+
+  > 特别需要注意的是使用Embedded Document级别的索引的时候，其embedded块中的字段的顺序是有非常大的影响的。仅针对使用embed方式查询（db.records.find( { location: { city: "New York", state: "NY" } } )）的时候。
+
+  - 后台建立索引
+  db.people.createIndex( { zipcode: 1}, {background: true} )
+
+---
+### 65. Compound Index
+  single index 的 embedded 索引在一定程度上也是也可以理解成是复合索引。
+
+  db.collection.createIndex( { <field1>: <type>, <field2>: <type2>, ... } )
+
+  复合索引的一个非常重要的特性是其查询的顺序是。（不过在执行的过程中，发现这个顺序好像并没有影响，不管是在前还是在后还是分开，都能够别解析成indexscan的方式）难道是3.2 版本的优化么？还是因为我的数据来量少？
+
+  - 排序
+  建立组合索引的时候，每个field都有自己的索引排序方法，如果查询sorft中的字段排序要求同其一致的话，那就可以使用索引急速的查询并排序，但是如果不是那就麻烦了。
+
+### 66. Multikey Index
+  db.coll.createIndex( { <field>: < 1 or -1 > } )
+
+  mongodb的会自动的根据字段的类型创建Multikey 索引，如果这个field是数组的话，那问题就来了，mongdb的同样的一个field是可以存放不同的数据类型的，假如两条记录一个有同样的一个字段，一个是数组一个是非数组那创建的索引是什么类型的索引呢？
+
+  目前不清楚是什么类型的索引，但是查询的时候都是走的索引的。
+
+  对于这种复合情况的索引，mongodb是使用集合的概念来处理数据的。如果要精确的锁定范围的话，利用$elemMatch来做结合的交叉，在交叉的时候使用的需要注意交叉数据所在索引的path。
+
+  有一个需要特别注意的点，对于复合索引，如果mongodb 没内能将其compund在一起的话，那就以地一个field的bounds为限制范围。
+  https://docs.mongodb.com/manual/core/multikey-index-bounds/
+
+  To compound together the bounds for index keys from the same array:
+
+  the index keys must share the same field path up to but excluding the field names, and
+  the query must specify predicates on the fields using $elemMatch on that path.
+
+  发现一个问题，对数组使用多前置的查询的elematch的时候，无数据取到。不知道是什么原因。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   
 
