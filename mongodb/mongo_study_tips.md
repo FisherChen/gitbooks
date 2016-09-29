@@ -534,7 +534,6 @@
 
   另外mongodb有一个非常直观的expain执行计划表述，比Oracle直观很多。
 
-
 ---
 ### 50. 执行计划的特别之处
 
@@ -713,7 +712,7 @@
 
   - Text Indexes 是给全文检索使用的。因为中文的全文检索需要额外的购买分词算法，目前估计暂时用不到。
 
-  - Hashed Indexes 使用hash算法来索引数据，但是本身应当也是有一定的显示的，比如应当没办法支持范围查询及可能出现不同的数据相同的hash值的场景。
+  - Hashed Indexes 使用hash算法来索引数据，但是本身应当也是有一定的限制的，比如应当没办法支持范围查询及可能出现不同的数据相同的hash值的场景。
 
   - 索引的属性 --Unique Indexes ，顾名思义，唯一性约束的索引
 
@@ -759,6 +758,7 @@
   - 排序
   建立组合索引的时候，每个field都有自己的索引排序方法，如果查询sorft中的字段排序要求同其一致的话，那就可以使用索引急速的查询并排序，但是如果不是那就麻烦了。
 
+---
 ### 66. Multikey Index
   db.coll.createIndex( { <field>: < 1 or -1 > } )
 
@@ -778,13 +778,106 @@
 
   发现一个问题，对数组使用多前置的查询的elematch的时候，无数据取到。不知道是什么原因。
 
+---
+### 67. Hashed Index
+  hash 索引本身是有一些限制的（如不支持范围操作等），但是其insert和delete的场景多的情况下效率还是可以的。不过一般情况下还是使用tree索引吧。
+
+---
+### 68. TTL Index
+  这个基本上都是给一些日志、session等信息来使用的，但是又有capped collection 两者一个是时间约束一个空间的上的约束。结合起来应当是蛮好用的。
+
+---
+### 69. unique Index（属性）
+  unique 索引同现在的Oracle的唯一性基本差不多，支持单个索引也支持组合索引。更像是一种约束吧
+
+  db.collection.createIndex( <key and index type specification>, { unique: true } )
+
+  在现在的工作的厂家下尽量不要使用，除非有非常强的限制。
+
+---
+### 70. partial Index（局部索引）
+  这个同Oracle的函数索引有雷同的性质。但是其功能设计上更加的特别，算是对目前的文档型数据结构是索引的一种补充，目前提供了如下的partialFilterExpression：
+
+  - equality expressions (i.e. field: value or using the $eq operator), 
+  - $exists: true expression, 
+  - $gt, $gte, $lt, $lte expressions,
+  - $type expressions,
+  - $and operator at the top-level only  
+
+  equality expressions同普通的索引一样，没什么分别。gt gte等都是正常的范围索引，控制下数据检索的数据范围。 exists 又是一种限制，限制数据的字段是否存在。其他的expressions都是一种限制，都是一种对文档类型数据库数据字段不确定的一种补充。
+
+  _id and shard key cann't index.
+
+  但是的局部索引使用的时候也是有个限制的，那就是在查询条件中，限制条件范围必须包含都应当在partialFilerExperssion范围之内。
+  否则并不会走索引。
+
+  - 多个field的 partial 索引，在查询的时候也是有顺序限制的问题的。
+  - 还有就是的当partial index 和 unique index 同时使用的时候，unique的唯一性的限制范围仅在partial的filter的数据范围内有效。
+
+---
+### 71. Sparse Index
+  这个没必要研究了，官方给的解释是mongodb3.2 以上的版本就最好不要使用sparse index了，使用partial index 。
+
+  >Changed in version 3.2: Starting in MongoDB 3.2, MongoDB provides the option to create partial indexes. Partial indexes offer a superset of the functionality of sparse indexes. If you are using MongoDB 3.2 or later, partial indexes should be preferred over sparse indexes.
+
+---
+### 72. 建立索引需要注意的地方
+  默认的情况下在非后台建立索引的时候，数据的collection 会被锁住，任何的读写操作都是没办法进行的。这个在数据库初始化的时候是没什么问题的，但是的在生产在线新建索引的时候影响会是非常的大的，这个务必小心。
+
+  那mongodb为什么不将默认的逻辑调整为backgroud呢？
+  
+  db.people.createIndex( { zipcode: 1}, {background: true, sparse: true } )
+
+  即便是backgroud的方式也是会阻塞当前shell，那如果shell断开了会影响到索引的建立么？
+  > 看来还是需要通过tmux 或者是nohup的方式将进程给后台起来。
+
+  > However, the mongo shell session or connection where you are creating the index will block until the index build is complete. To continue issuing commands to the database, open another connection or mongo instance.
+
+  > If MongoDB is building an index in the background, you cannot perform other administrative operations involving that collection, including running repairDatabase, dropping the collection (i.e. db.collection.drop()), and running compact. These operations will return an error during background index builds.
+
+  backgroud 建立索引比foregroud的建立索引的方式性能上要相差很多，特别是当内存的空间使用满了以后。占用的时间会更长。且建立索引的时候也会影响性能。
+
+  一般情况下索引的建立最好在一开始的时候就建立，不要等后面。同时建立所以的shell最好是独立的窗口执行。
+
+  当在建立索引的时候服务器出现了问题，那在重启服务器的时候的，索引会自动的开始重建。
+
+  If a background index build is in progress when the mongod process terminates, when the instance restarts the index build will restart as foreground index build. If the index build encounters any errors, such as a duplicate key error, the mongod will exit with an error.
 
 
+  还有一个需要注意的是，对于的replica set的场景下的大批量数据的索引建立，可以将其中一个secondary 节点先standalone，然后采用foreground 的方式执行。这样效率最高，执行完成后再放到集群中。
 
+  [https://docs.mongodb.com/manual/tutorial/build-indexes-on-replica-sets/#index-building-replica-sets]
 
+  **不过这样的方式还是及其的麻烦的，任何的索引的建立还是要设计好，想好自己数据的使用场景，不然后面补都是会十分的麻烦的。**
 
+  同其他的选项一样使用  db.currentOp() 来观察当前的索引建立情况。**[db.currentOp(), db.killOp()]**
 
+  暂时还不清楚 reIndex() 的场景。还有需要注意的点是一些index的维护功能同底层的存储引擎是有很大的关系的。
 
+---
+### 73. 索引的使用情况统计
+
+  - $indexStats 可以有效的统计索引的使用情况，利用这个功能可以分析那些索引的使用率非常的低下，然后想办法清理掉。
+    db.test2.aggregate([{$indexStats:{}}])
+
+  - 使用hint()的方式来调整执行计划
+  
+    ```javaScript
+      db.people.find(
+     { name: "John Doe", zipcode: { $gt: "63000" } }
+    ).hint( { zipcode: 1 } )
+    ```
+  一般情况下尽量的少使用hint，使用hint的在一定的程度上说明了索引建立的并不是太好，或者同业务场景并不匹配。而且很多都是在代码的写的查询语句，在生产的环境下很难的像sql一样直接改掉执行。
+
+  - 其他统计的
+
+---
+### 74. 确保索引数据都在内存中
+  
+  索引也是一种数据，如果让数据能够快速索引的话，那就尽量使用大的内存。当然所索引也是有相关的算法的，仅将最新需要的数据hold在内存中。所以如果不是有非常持续的大的压力的话，mongodb的性能也是可以的。
+
+---
+### 75. 
 
 
 
