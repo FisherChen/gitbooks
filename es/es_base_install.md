@@ -29,7 +29,45 @@
 		> 如果资源充值那就是三副本都是仅仅当mater 节点使用，但是如果在资源不足的情况下，可以先让一台好的机器先启动充当mater节点，然后再不从补充其他的data节点充当mater 节点。这样如果主节点出现了问题，造成的应当也仅仅是临时的性能的下降。
 		
 		
++ 一些需要注意的操作系统级别的参数需要调整的
+	
+	1. JVM 的参数
 
+		因为的ES是JAVA开发的，是在JVM的基础上运行的，JVM的一些限制或者是问题都会影响到ES的正常的运行，最明显的就是的堆空间的大小,Heap Size. 现在推荐的JVM的是在启动的时候直接初始化到最大的使用上限。默认的情况下最大的JVM的堆的大小是2GB。Xms (minimum heap size) and Xmx (maximum heap size)  的参数需要都是相等的。
+		```
+			-Xms2g
+			-Xmx2g 
+		```
+	JVM 的参数需要遵循如下的参数的配置需求(在 config 目录下的jvm.options)：
+	- Xms 和 Xmx 的值需要保持相等；
+	- 堆空间设置的越大，ES 可以catch的数据越多，但同时对JVM的GC来说，需要GC的数据也就越多，GC的暂停时间就会更长；
+	- Xmx的值在设置上不要超过 物理可用内存的50%，因为还需要给操作系统留足空间做系统的catch
+	- 需要注意JVM的Xmx的值需要小于JVM的压缩oops上限,正常情况下这个值是30GB左右，所以Xmx的最大值一般设置在26GB的时候比较安全，当然也可以根据气的方式进一步的放到参数的配置。'XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode'
+	
+
+	2. 限制swap分区的使用
+
+	之所以限制其使用，主要是因为的对操作系统来说，都是尽可能的使用内存的空间，如果非ES的JVM的程序占用了操作系统的大量的内存，这个时候操作系统就会把JVM的内存的数据从RAM中刷到Swap分区中，而这样就极大的限制了性能的。
+	现在有3种方式可以实现整个控制：
+	方式一 ： 通过 mlockall 的功能限制主JVM的内存的不被占用或者是交换出去，但是当出现实际的数据大于Xmx的时候mlockall就会出现异常，整个程序就会崩溃掉。
+	
+	方式二： 通过禁用Swap的功能，但是这样也会有一定的风险，当数据量常规RAM的上限的时候就会发生OOM了；
+	
+	方式三： 尽量的降低被置换出去的可能，同syscl的 vim.swappiness 的功能尽量的限制数据不被置换出去，但是如果发生紧急的情况还是可以swap的。这个是比较稳妥的做法。
+	
+	3. 修改Linux 或者是MAC的一些操作系统级别的参数的配置
+	
+	修改文件handls的 limit，通过root用户修正，`ulimit -n 65536` 默认的情况下至少是65536。通过如下的接口可以获取到每个node的limit的大小：
+		```
+			GET _nodes/stats/process?filter_path=**.max_file_descriptors
+		```
+	4. 修改操作系统的max_map_count 的值，否则容易引起OOM
+	
+	5. Thread Numbers 同 handles 一样可以通过ulimti的修正完成。
+
++ ES 的停止
+	
+	ES的停止务必要保证线程的数据被缓存到了磁盘上。
 
 + ES工程的目录结构
 
